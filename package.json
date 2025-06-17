@@ -1,0 +1,20 @@
+{
+  "name": "humble-bundle-library-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Download your Humble Bundle library",
+  "license": "MIT",
+  "author": "Fernando Cortez",
+  "type": "module",
+  "scripts": {
+    "format": "npx @biomejs/biome check --write src",
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.53.0",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.0.0"
+  }
+}
