@@ -8,11 +8,13 @@
   "type": "module",
   "scripts": {
     "format": "npx @biomejs/biome check --write src",
-    "start": "node src/main.js"
+    "predev": "docker compose up -d",
+    "dev": "node src/main.js"
   },
   "dependencies": {
     "@playwright/test": "^1.53.0",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "pg": "^8.16.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.0.0"

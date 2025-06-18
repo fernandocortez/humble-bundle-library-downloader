@@ -1,19 +1,28 @@
 import "dotenv/config";
-import sqlite from "node:sqlite";
+import pg from "pg";
 import { firefox } from "playwright";
 import { generateTOTP } from "./otp.js";
 
-const database = new sqlite.DatabaseSync("humble_bundle_library.db");
-database.exec(`
+const dbConfig = {
+	host: "localhost",
+	port: 5432,
+	database: "postgres",
+	user: process.env.POSTGRES_USER,
+	password: process.env.POSTGRES_PASSWORD,
+};
+const client = new pg.Client(dbConfig);
+client.connect();
+
+client.query(`
 	CREATE TABLE IF NOT EXISTS ebooks(
-		title TEXT,
-		publisher TEXT,
+		title TEXT NOT NULL,
+		publisher TEXT NOT NULL,
 		PRIMARY KEY (title, publisher)
-	) STRICT
+	)
 `);
 
 (async () => {
-	const browser = await firefox.launch({ headless: true });
+	const browser = await firefox.launch({ headless: false });
 	const context = await browser.newContext({
 		userAgent:
 			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
@@ -47,14 +56,13 @@ database.exec(`
 		await page.getByRole("link", { name: "Library", exact: true }).click(); // go to Library page
 
 		// library page
-		await page.waitForTimeout(60_000); // wait for library items to start loading
+		await page.waitForTimeout(30_000); // wait for library items to start loading
 		await page.locator("#switch-platform").selectOption("ebook"); // filter library items to only ebooks using dropdown
-		await page.evaluate("window.scrollTo(0, document.body.scrollHeight);");
-		await page.waitForTimeout(60_000); // wait for library items to finish loading
+		for (let i = 0; i < 6; i++) {
+			await page.evaluate("window.scrollTo(0, document.body.scrollHeight);");
+			await page.waitForTimeout(10_000); // wait for library items to continue loading
+		}
 
-		const insert = database.prepare(
-			"INSERT OR IGNORE INTO ebooks (title, publisher) VALUES (?, ?)",
-		);
 		const products = await page.locator(".subproduct-selector");
 		const count = await products.count();
 		for (let i = 0; i < count; ++i) {
@@ -64,12 +72,19 @@ database.exec(`
 				.trim()
 				.split("\n")
 				.map((s) => s.trim());
-			insert.run(title, publisher);
+			await client.query(
+				"INSERT INTO ebooks (title, publisher) VALUES ($1, $2) ON CONFLICT (title, publisher) DO NOTHING",
+				[title, publisher],
+			);
+			await client.query("COMMIT");
 			// await products.nth(i).click();
 		}
+		await page.evaluate("window.scrollTo(0, 0);");
 	} catch (e) {
 		console.error(e);
+		await client.query("ROLLBACK");
 	} finally {
+		await client.end();
 		await page.getByLabel("Account Access").click();
 		await page.getByRole("link", { name: "Logout", exact: true }).click();
 		await page.waitForURL((url) => {
