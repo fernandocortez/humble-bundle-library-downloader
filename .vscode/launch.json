@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-HumbleBundleLibraryDownloaderApplication<humble-bundle-library-downloader>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "dev.fernandocortez.humblebundlelibrarydownloader.HumbleBundleLibraryDownloaderApplication",
+            "projectName": "humble-bundle-library-downloader",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
