@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class HumbleBundleLibraryEbook {
 
-    private String title;
-    private String publisher;
+  private String title;
+  private String publisher;
 
 }

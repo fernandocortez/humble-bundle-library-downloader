@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class HumbleBundleLibraryDownloaderApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(HumbleBundleLibraryDownloaderApplication.class, args);
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(HumbleBundleLibraryDownloaderApplication.class, args);
+  }
 
 }
