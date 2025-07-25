@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="en">
+
+<head>
+  <title>fragments</title>
+</head>
+
+<body>
+<p th:fragment="loading">Loading all ebooks to database</p>
+
+<table th:fragment="all">
+  <thead>
+  <tr>
+    <th>Title</th>
+    <th>Publisher</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="ebook: ${ebooks}">
+    <td th:text="${ebook.title}"></td>
+    <td th:text="${ebook.publisher}"></td>
+  </tr>
+  </tbody>
+</table>
+</body>
+
+</html>

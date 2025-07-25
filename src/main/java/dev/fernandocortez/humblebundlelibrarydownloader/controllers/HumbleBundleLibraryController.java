@@ -1,13 +1,12 @@
 package dev.fernandocortez.humblebundlelibrarydownloader.controllers;
 
 import dev.fernandocortez.humblebundlelibrarydownloader.services.HumbleBundlePlaywrightBrowserService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import io.github.wimdeblauwe.htmx.spring.boot.mvc.HxRequest;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.PostMapping;
 
-
-@RestController
-@RequestMapping("/api")
+@Controller
 public class HumbleBundleLibraryController {
 
   private final HumbleBundlePlaywrightBrowserService browserService;
@@ -16,10 +15,19 @@ public class HumbleBundleLibraryController {
     this.browserService = browserService;
   }
 
-  @GetMapping("/ebooks/load")
+  @HxRequest
+  @PostMapping("/ebooks/load")
   public String getAllEbooks() {
     browserService.populateDatabase();
-    return "OK";
+    return "ebooks :: loading";
+  }
+
+  @HxRequest
+  @PostMapping("/ebooks/all")
+  public String postMethodName(Model model) {
+    var ebooks = browserService.getAllEbooks();
+    model.addAttribute("ebooks", ebooks);
+    return "ebooks :: all";
   }
 
 }

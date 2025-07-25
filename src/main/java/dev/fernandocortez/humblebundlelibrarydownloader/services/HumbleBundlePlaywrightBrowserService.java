@@ -13,16 +13,15 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.util.Arrays;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class HumbleBundlePlaywrightBrowserService {
 
-  private static Logger logger =
-      LoggerFactory.getLogger(HumbleBundlePlaywrightBrowserService.class);
   private final HumbleBundleLibraryRepository repository;
 
   @Value("${humblebundle.username}")
@@ -43,17 +42,21 @@ public class HumbleBundlePlaywrightBrowserService {
     this.repository = repository;
 
     playwright = Playwright.create();
-    browser = playwright.firefox().launch(
-        new BrowserType.LaunchOptions().setHeadless(false).setSlowMo(50));
+    browser = playwright.firefox()
+        .launch(new BrowserType.LaunchOptions().setHeadless(true));
+//    browser = playwright.firefox().launch(
+//        new BrowserType.LaunchOptions().setHeadless(false).setSlowMo(50));
     context = browser.newContext(new Browser.NewContextOptions().setUserAgent(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
         .setBaseURL("https://www.humblebundle.com"));
     page = context.newPage();
   }
 
+  @Async
   public void populateDatabase() {
     // go to library page
     page.navigate("/home/library");
+    log.debug("Navigated to library page");
 
     // handle library page
     // wait for library items to start loading
@@ -61,6 +64,7 @@ public class HumbleBundlePlaywrightBrowserService {
 
     // filter library items to only ebooks using the dropdown
     page.locator("#switch-platform").selectOption("ebook");
+    log.debug("Filtering library to display only ebooks");
 
     for (int i = 0; i < 6; i++) {
       // scroll to the bottom of the page; loads more items
@@ -74,6 +78,7 @@ public class HumbleBundlePlaywrightBrowserService {
 
     // scroll to the top of the page
     page.locator("#switch-platform").scrollIntoViewIfNeeded();
+    log.debug("Scrolled back to top of library page");
 
     final var products = page.locator(".subproduct-selector");
     final int count = products.count();
@@ -87,18 +92,28 @@ public class HumbleBundlePlaywrightBrowserService {
       final HumbleBundleLibraryEbook ebook = new HumbleBundleLibraryEbook();
       ebook.setTitle(title);
       ebook.setPublisher(publisher);
-      repository.saveEbook(ebook);
+      final int rowsAffected = repository.saveEbook(ebook);
+      if (rowsAffected > 0) {
+        log.debug("ebook inserted into database: {}", ebook);
+      }
     }
+  }
+
+  public List<HumbleBundleLibraryEbook> getAllEbooks() {
+    return repository.findAllEbooks();
   }
 
   @PostConstruct
   private void init() {
+    log.debug("Initializing Humble Bundle session");
     page.navigate("/");
     // go to login page
     page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Log In"))
         .click();
+    log.debug("Navigated to login page");
 
     // login page
+    log.debug("Entering user credentials");
     page.getByPlaceholder("Email", new Page.GetByPlaceholderOptions().setExact(true))
         .fill(humbleBundleUsername);
     page.getByPlaceholder("Password", new Page.GetByPlaceholderOptions().setExact(true))
@@ -108,6 +123,7 @@ public class HumbleBundlePlaywrightBrowserService {
         .click();
 
     // 2fa page
+    log.debug("Entering 2FA token");
     final String totp = OtpGenerator.generateTOTP(humbleBundleTotpSecret);
     page.getByPlaceholder("Enter Google Authenticator code",
         new Page.GetByPlaceholderOptions().setExact(true)).fill(totp);
@@ -118,9 +134,9 @@ public class HumbleBundlePlaywrightBrowserService {
 
   @PreDestroy
   private void cleanup() {
-    logger.debug("Cleaning up browser session");
+    log.debug("Cleaning up browser session");
     try {
-      logger.debug("Attempting to log out");
+      log.debug("Attempting to log out");
       page.navigate("/home/library");
       // open account dropdown
       page.getByLabel("Account Access").click();
@@ -129,12 +145,15 @@ public class HumbleBundlePlaywrightBrowserService {
           .setExact(true)).click();
       // wait to be redirected to login page
       page.waitForURL(url -> url.contains("/login"));
+      log.debug("Log out should be successful");
     } catch (Exception e) {
-      logger.error("Unable to log out; most likely session was not logged in");
+      log.error("Unable to log out; most likely session was not logged in");
     } finally {
+      log.debug("Closing browser instance");
       context.close();
       browser.close();
       playwright.close();
+      log.debug("Browser instance closed");
     }
   }
 

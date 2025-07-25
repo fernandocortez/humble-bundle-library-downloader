@@ -29,10 +29,10 @@ public class HumbleBundleLibraryRepository {
     return jdbcTemplate.query(sql, productRowMapper);
   }
 
-  public void saveEbook(HumbleBundleLibraryEbook ebook) {
+  public int saveEbook(HumbleBundleLibraryEbook ebook) {
     final String sql =
         "INSERT INTO ebooks (title, publisher) VALUES (?, ?) ON CONFLICT (title, publisher) DO NOTHING";
-    jdbcTemplate.update(connection -> {
+    return jdbcTemplate.update(connection -> {
       PreparedStatement ps = connection.prepareStatement(sql);
       ps.setString(1, ebook.getTitle());
       ps.setString(2, ebook.getPublisher());
