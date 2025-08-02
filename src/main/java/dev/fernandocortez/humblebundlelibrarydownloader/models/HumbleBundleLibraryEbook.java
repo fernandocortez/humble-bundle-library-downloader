@@ -9,5 +9,7 @@ public class HumbleBundleLibraryEbook {
 
   private String title;
   private String publisher;
+  private String downloadOption;
+  private Integer fileId;
 
 }

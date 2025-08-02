@@ -81,22 +81,47 @@ public class HumbleBundlePlaywrightBrowserService {
     log.debug("Scrolled back to top of library page");
 
     final var products = page.locator(".subproduct-selector");
-    final int count = products.count();
-    for (int i = 0; i < count; ++i) {
-      // nth is not zero based
-      final String textContent = products.nth(i).textContent();
-      final List<String> details = Arrays.stream(textContent.trim().split("\n"))
+    final int productCount = products.count();
+    for (int i = 0; i < productCount; ++i) {
+      final var product = products.nth(i); // nth is not zero based
+      product.click();
+
+      final String productTextContent = product.textContent();
+      final List<String> details = Arrays.stream(productTextContent.trim().split("\n"))
           .map(String::trim).toList();
       final String title = details.getFirst();
       final String publisher = details.getLast();
-      final HumbleBundleLibraryEbook ebook = new HumbleBundleLibraryEbook();
-      ebook.setTitle(title);
-      ebook.setPublisher(publisher);
-      final int rowsAffected = repository.saveEbook(ebook);
-      if (rowsAffected > 0) {
-        log.debug("ebook inserted into database: {}", ebook);
+      try {
+        final int ebookRowsAffected = repository.saveEbook(title, publisher);
+        if (ebookRowsAffected > 0) {
+          log.debug("ebook inserted into database: {}, {}", title, publisher);
+        }
+      } catch (Exception e) {
+        log.error(e.getMessage());
+      }
+
+      final int ebookId = repository.getEbookId(title, publisher);
+      if (ebookId < 1) {
+        continue; // go to next ebook
+      }
+      final var downloadOptions = page.locator(".download-section .download-button h4");
+      final int downloadsCount = downloadOptions.count();
+      for (int j = 0; j < downloadsCount; ++j) {
+        final var downloadOption = downloadOptions.nth(j);
+        final String downloadOptionType = downloadOption.allInnerTexts().getFirst();
+        try {
+          final int downloadOptionRowsAffected = repository.saveEbookDownloadOption(ebookId,
+              downloadOptionType);
+          if (downloadOptionRowsAffected > 0) {
+            log.debug("ebook download option inserted into database: {}, {}, {}", title, publisher,
+                downloadOptionType);
+          }
+        } catch (Exception e) {
+          log.error(e.getMessage());
+        }
       }
     }
+    log.debug("Finished populating database");
   }
 
   public List<HumbleBundleLibraryEbook> getAllEbooks() {
