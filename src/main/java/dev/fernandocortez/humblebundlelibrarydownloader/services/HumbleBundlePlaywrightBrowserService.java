@@ -61,9 +61,12 @@ public class HumbleBundlePlaywrightBrowserService {
   }
 
   private void navigateToLibraryAndWaitForProductsToLoad() {
-    // go to library page
-    page.navigate("/home/library");
-    log.debug("Navigated to library page");
+    final String url = page.url();
+    if (!url.contains("/home/library")) {
+      // go to library page
+      page.navigate("/home/library");
+      log.debug("Navigated to library page");
+    }
 
     if (isLibraryLoaded) {
       log.debug("Library already loaded");
@@ -140,6 +143,36 @@ public class HumbleBundlePlaywrightBrowserService {
       }
     }
     log.debug("Finished populating database");
+  }
+
+  @Async
+  public void downloadSelectedFiles(List<Integer> fileIds) {
+    this.navigateToLibraryAndWaitForProductsToLoad();
+
+    final List<HumbleBundleLibraryEbook> ebooksToDownload = repository.getSelectedEbooksFromFileIds(
+        fileIds);
+    ebooksToDownload.forEach(ebook -> {
+      final String filePath = baseFilePath + "/" + ebook.getPublisher() + "/" + ebook.getTitle();
+      try {
+        new File(filePath).mkdirs();
+      } catch (Exception e) {
+        log.error("Unable to create directory {}: {}", filePath, e.getMessage());
+      }
+
+      // click from product list along left
+      page.locator(".subproduct-selector")
+          .filter(new Locator.FilterOptions().setHasText(ebook.getTitle()))
+          .filter(new Locator.FilterOptions().setHasText(ebook.getPublisher()))
+          .click();
+
+      final Download download = page.waitForDownload(() -> {
+        // click download option under selected product
+        page.locator(".download-section .download-button h4")
+            .filter(new Locator.FilterOptions().setHasText(ebook.getDownloadOption()))
+            .click();
+      });
+      download.saveAs(Paths.get(filePath, download.suggestedFilename()));
+    });
   }
 
   public List<HumbleBundleLibraryEbook> getAllEbooks() {
