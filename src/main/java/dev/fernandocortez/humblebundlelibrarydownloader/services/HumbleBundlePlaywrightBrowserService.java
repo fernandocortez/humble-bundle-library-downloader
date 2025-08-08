@@ -3,6 +3,8 @@ package dev.fernandocortez.humblebundlelibrarydownloader.services;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Download;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
@@ -11,6 +13,8 @@ import dev.fernandocortez.humblebundlelibrarydownloader.models.HumbleBundleLibra
 import dev.fernandocortez.humblebundlelibrarydownloader.repositories.HumbleBundleLibraryRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.io.File;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -33,10 +37,14 @@ public class HumbleBundlePlaywrightBrowserService {
   @Value("${humblebundle.totp}")
   private String humbleBundleTotpSecret;
 
+  @Value("${humblebundle.basefilepath}")
+  private String baseFilePath;
+
   private Playwright playwright;
   private Browser browser;
   private BrowserContext context;
   private Page page;
+  private boolean isLibraryLoaded = false;
 
   public HumbleBundlePlaywrightBrowserService(HumbleBundleLibraryRepository repository) {
     this.repository = repository;
@@ -52,11 +60,15 @@ public class HumbleBundlePlaywrightBrowserService {
     page = context.newPage();
   }
 
-  @Async
-  public void populateDatabase() {
+  private void navigateToLibraryAndWaitForProductsToLoad() {
     // go to library page
     page.navigate("/home/library");
     log.debug("Navigated to library page");
+
+    if (isLibraryLoaded) {
+      log.debug("Library already loaded");
+      return;
+    }
 
     // handle library page
     // wait for library items to start loading
@@ -79,6 +91,12 @@ public class HumbleBundlePlaywrightBrowserService {
     // scroll to the top of the page
     page.locator("#switch-platform").scrollIntoViewIfNeeded();
     log.debug("Scrolled back to top of library page");
+    this.isLibraryLoaded = true;
+  }
+
+  @Async
+  public void populateDatabase() {
+    this.navigateToLibraryAndWaitForProductsToLoad();
 
     final var products = page.locator(".subproduct-selector");
     final int productCount = products.count();

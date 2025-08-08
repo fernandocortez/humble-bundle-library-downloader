@@ -2,6 +2,7 @@ package dev.fernandocortez.humblebundlelibrarydownloader.repositories;
 
 import dev.fernandocortez.humblebundlelibrarydownloader.models.HumbleBundleLibraryEbook;
 import java.sql.PreparedStatement;
+import java.util.Collections;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -43,6 +44,27 @@ public class HumbleBundleLibraryRepository {
         	download_option;
         """;
     return jdbcTemplate.query(sql, productRowMapper);
+  }
+
+  public List<HumbleBundleLibraryEbook> getSelectedEbooksFromFileIds(List<Integer> fileIds) {
+    final String sql = String.format("""
+        SELECT
+        	e.ebook_title AS title,
+        	e.ebook_publisher AS publisher,
+        	ef.download_option AS download_option,
+          ef.file_id AS file_id
+        FROM
+        	ebooks e
+        JOIN ebook_files ef ON
+        	e.ebook_id = ef.ebook_id
+        WHERE
+          ef.file_id IN (%s)
+        ORDER BY
+        	publisher,
+        	title,
+        	download_option;
+        """, String.join(",", Collections.nCopies(fileIds.size(), "?")));
+    return jdbcTemplate.query(sql, productRowMapper, fileIds.toArray());
   }
 
   public int saveEbook(String title, String publisher) {
