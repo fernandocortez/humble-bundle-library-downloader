@@ -1,0 +1,10 @@
+{#for ebook in ebooks}
+<tr>
+  <td><input type="checkbox" value={ebook.getFileId()}/></td>
+  <td>{ebook.getTitle()}</td>
+  <td>{ebook.getPublisher()}</td>
+  <td>{ebook.getDownloadOption()}</td>
+  <td>{ebook.getDownloadStatus()}</td>
+  <td>{ebook.getLastStatusUpdate()}</td>
+</tr>
+{/for}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="/static/normalize.css"/>
+  <link rel="stylesheet" href="/static/sakura.css" media="screen"/>
+  <link rel="stylesheet" href="/static/sakura-dark.css"
+        media="screen and (prefers-color-scheme: dark)"/>
+  <script src="/static/htmx.min.js"></script>
+  <title>Humble Bundle Library Downloader</title>
+</head>
+
+<body>
+<main>
+  <h1>Humble Bundle Library Downloader</h1>
+
+  <section>
+    <button hx-post="/ebooks/load" hx-trigger="click"
+            hx-target="#message-output" hx-swap="innerHTML">
+      Load eBooks
+    </button>
+  </section>
+
+  <div>
+    <p id="message-output"></p>
+  </div>
+
+  <section>
+    <table>
+      <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Publisher</th>
+        <th>Download Option</th>
+        <th>Download Status</th>
+        <th>Last Status Update</th>
+      </tr>
+      </thead>
+      <tbody hx-get="/ebooks" hx-trigger="load" hx-swap="innerHTML">
+      <tr>
+        <td colspan="6">Loading...</td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+
+</html>

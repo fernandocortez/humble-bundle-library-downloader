@@ -1,107 +1,86 @@
 package dev.fernandocortez.humblebundlelibrarydownloader.repositories;
 
-import dev.fernandocortez.humblebundlelibrarydownloader.models.HumbleBundleLibraryEbook;
-import java.sql.PreparedStatement;
+import dev.fernandocortez.humblebundlelibrarydownloader.dto.HumbleBundleLibraryEbook;
+import dev.fernandocortez.humblebundlelibrarydownloader.entities.EbookEntity;
+import dev.fernandocortez.humblebundlelibrarydownloader.entities.EbookFileEntity;
+import dev.fernandocortez.humblebundlelibrarydownloader.entities.PublisherEntity;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import java.util.Collections;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Repository;
+import java.util.Set;
+import org.jboss.logging.Logger;
 
-@Repository
+@ApplicationScoped
 public class HumbleBundleLibraryRepository {
 
-  private final JdbcTemplate jdbcTemplate;
+  private static final Logger LOG = Logger.getLogger(HumbleBundleLibraryRepository.class);
 
-  public HumbleBundleLibraryRepository(JdbcTemplate jdbcTemplate) {
-    this.jdbcTemplate = jdbcTemplate;
+  @Inject
+  PublisherRepository publisherRepository;
+  @Inject
+  EbookRepository ebookRepository;
+  @Inject
+  EbookFileRepository ebookFileRepository;
+
+  @Transactional
+  public long insertPublisher(String name) {
+    PublisherEntity publisher = new PublisherEntity(name);
+    publisherRepository.persist(publisher);
+    return publisher.id;
   }
 
-  // RowMapper to convert ResultSet rows to Ebook objects
-  private final RowMapper<HumbleBundleLibraryEbook> productRowMapper = (rs, rowNum) -> {
-    HumbleBundleLibraryEbook product = new HumbleBundleLibraryEbook();
-    product.setTitle(rs.getString("title"));
-    product.setPublisher(rs.getString("publisher"));
-    product.setDownloadOption(rs.getString("download_option"));
-    product.setFileId(rs.getInt("file_id"));
-    return product;
-  };
-
-  public List<HumbleBundleLibraryEbook> findAllEbooks() {
-    final String sql = """
-        SELECT
-        	e.ebook_title AS title,
-        	e.ebook_publisher AS publisher,
-        	ef.download_option AS download_option,
-          ef.file_id AS file_id
-        FROM
-        	ebooks e
-        JOIN ebook_files ef ON
-        	e.ebook_id = ef.ebook_id
-        ORDER BY
-        	publisher,
-        	title,
-        	download_option;
-        """;
-    return jdbcTemplate.query(sql, productRowMapper);
+  @Transactional
+  public long insertEbook(long publisherId, String title) {
+    PublisherEntity publisher = PublisherEntity.findById(publisherId);
+    EbookEntity ebook = new EbookEntity(publisher, title);
+    ebookRepository.persist(ebook);
+    return ebook.id;
   }
 
-  public List<HumbleBundleLibraryEbook> getSelectedEbooksFromFileIds(List<Integer> fileIds) {
-    final String sql = String.format("""
-        SELECT
-        	e.ebook_title AS title,
-        	e.ebook_publisher AS publisher,
-        	ef.download_option AS download_option,
-          ef.file_id AS file_id
-        FROM
-        	ebooks e
-        JOIN ebook_files ef ON
-        	e.ebook_id = ef.ebook_id
-        WHERE
-          ef.file_id IN (%s)
-        ORDER BY
-        	publisher,
-        	title,
-        	download_option;
-        """, String.join(",", Collections.nCopies(fileIds.size(), "?")));
-    return jdbcTemplate.query(sql, productRowMapper, fileIds.toArray());
+  @Transactional
+  public long insertEbookFile(long ebookId, String downloadOption) {
+    EbookEntity ebook = EbookEntity.findById(ebookId);
+    EbookFileEntity ebookFile = new EbookFileEntity(ebook, downloadOption);
+    ebookFileRepository.persist(ebookFile);
+    return ebookFile.id;
   }
 
-  public int saveEbook(String title, String publisher) {
-    final String sql = """
-        INSERT INTO ebooks (ebook_title, ebook_publisher)
-        SELECT ?, ?
-        WHERE NOT EXISTS (SELECT 1 FROM ebooks WHERE ebook_title = ? AND ebook_publisher = ?);
-        """;
-    return jdbcTemplate.update(connection -> {
-      final PreparedStatement ps = connection.prepareStatement(sql);
-      ps.setString(1, title);
-      ps.setString(2, publisher);
-      ps.setString(3, title);
-      ps.setString(4, publisher);
-      return ps;
-    });
+  public List<HumbleBundleLibraryEbook> selectAllEbooks() {
+    final var ebookFiles = ebookFileRepository.findAllWithEbookAndPublisher();
+    final var ebooks = ebookFiles.parallelStream()
+        .map(ebookFile -> HumbleBundleLibraryEbook.builder()
+            .publisher(ebookFile.ebook.publisher.name)
+            .title(ebookFile.ebook.title)
+            .downloadOption(ebookFile.downloadOption)
+            .fileName(ebookFile.fileName)
+            .fileId(ebookFile.id)
+            .downloadStatus(ebookFile.downloadStatus)
+            .lastStatusUpdate(ebookFile.lastStatusUpdate)
+            .build())
+        .toList();
+    return ebooks;
   }
 
-  public int getEbookId(String title, String publisher) {
-    final String sql = "SELECT ebook_id FROM ebooks WHERE ebook_title = ? AND ebook_publisher = ?;";
-    final Integer id = jdbcTemplate.queryForObject(sql, Integer.class, title, publisher);
-    return id == null ? 0 : id;
-  }
+  public List<HumbleBundleLibraryEbook> getSelectedEbooksFromFileIds(Set<Long> fileIds) {
+    if (fileIds == null || fileIds.isEmpty()) {
+      return Collections.emptyList();
+    }
 
-  public int saveEbookDownloadOption(int ebookId, String option) {
-    final String sql = """
-        INSERT INTO ebook_files (ebook_id, download_option)
-        SELECT ?, ?
-        WHERE NOT EXISTS (SELECT 1 FROM ebook_files WHERE ebook_id = ? AND download_option = ?);
-        """;
-    return jdbcTemplate.update(connection -> {
-      final PreparedStatement ps = connection.prepareStatement(sql);
-      ps.setInt(1, ebookId);
-      ps.setString(2, option);
-      ps.setInt(3, ebookId);
-      ps.setString(4, option);
-      return ps;
-    });
+    final var ebookFiles = ebookFileRepository.findAllWithEbookAndPublisher();
+    final var ebooks = ebookFiles.parallelStream()
+        .filter(ebookFile -> fileIds.contains(ebookFile.id))
+        .map(ebookFile -> HumbleBundleLibraryEbook.builder()
+            .publisher(ebookFile.ebook.publisher.name)
+            .title(ebookFile.ebook.title)
+            .downloadOption(ebookFile.downloadOption)
+            .fileName(ebookFile.fileName)
+            .fileId(ebookFile.id)
+            .downloadStatus(ebookFile.downloadStatus)
+            .lastStatusUpdate(ebookFile.lastStatusUpdate)
+            .build())
+        .toList();
+    return ebooks;
   }
 }

@@ -1,46 +1,46 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.4.11'
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'io.quarkus'
 }
 
 group = 'dev.fernandocortez'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
-    annotationProcessor 'org.projectlombok:lombok'
-    compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
-    implementation 'com.microsoft.playwright:playwright:1.54.0'
-    implementation 'io.github.wimdeblauwe:htmx-spring-boot-thymeleaf:4.0.1'
-    implementation 'jakarta.annotation:jakarta.annotation-api'
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-database-postgresql'
-    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    runtimeOnly 'org.postgresql:postgresql'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    implementation 'com.microsoft.playwright:playwright:1.56.0'
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkus:quarkus-flyway'
+    implementation 'io.quarkus:quarkus-hibernate-orm-panache'
+    implementation 'io.quarkus:quarkus-rest-qute'
+    implementation 'io.quarkiverse.jdbc:quarkus-jdbc-sqlite:3.0.11'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+compileJava {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-parameters'
+}
+
+task installPlaywrightBrowsers(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'com.microsoft.playwright.CLI'
+    args 'install'
+}
+
+task installPlaywrightDeps(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'com.microsoft.playwright.CLI'
+    args 'install-deps'
 }

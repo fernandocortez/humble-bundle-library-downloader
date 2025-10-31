@@ -8,36 +8,39 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
+import dev.fernandocortez.humblebundlelibrarydownloader.dto.HumbleBundleLibraryEbook;
 import dev.fernandocortez.humblebundlelibrarydownloader.helpers.OtpGenerator;
-import dev.fernandocortez.humblebundlelibrarydownloader.models.HumbleBundleLibraryEbook;
 import dev.fernandocortez.humblebundlelibrarydownloader.repositories.HumbleBundleLibraryRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+import java.util.Set;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
-@Service
-@Slf4j
+@ApplicationScoped
 public class HumbleBundlePlaywrightBrowserService {
 
-  private final HumbleBundleLibraryRepository repository;
+  private static final Logger LOG = Logger.getLogger(HumbleBundlePlaywrightBrowserService.class);
 
-  @Value("${humblebundle.username}")
+  @Inject
+  HumbleBundleLibraryRepository repository;
+
+  @ConfigProperty(name = "humblebundle.username")
   private String humbleBundleUsername;
 
-  @Value("${humblebundle.password}")
+  @ConfigProperty(name = "humblebundle.password")
   private String humbleBundlePassword;
 
-  @Value("${humblebundle.totp}")
+  @ConfigProperty(name = "humblebundle.totp")
   private String humbleBundleTotpSecret;
 
-  @Value("${humblebundle.basefilepath}")
+  @ConfigProperty(name = "humblebundle.basefilepath")
   private String baseFilePath;
 
   private Playwright playwright;
@@ -46,9 +49,7 @@ public class HumbleBundlePlaywrightBrowserService {
   private Page page;
   private boolean isLibraryLoaded = false;
 
-  public HumbleBundlePlaywrightBrowserService(HumbleBundleLibraryRepository repository) {
-    this.repository = repository;
-
+  public HumbleBundlePlaywrightBrowserService() {
     playwright = Playwright.create();
     browser = playwright.firefox()
         .launch(new BrowserType.LaunchOptions().setHeadless(true));
@@ -65,11 +66,11 @@ public class HumbleBundlePlaywrightBrowserService {
     if (!url.contains("/home/library")) {
       // go to library page
       page.navigate("/home/library");
-      log.debug("Navigated to library page");
+      LOG.debug("Navigated to library page");
     }
 
     if (isLibraryLoaded) {
-      log.debug("Library already loaded");
+      LOG.debug("Library already loaded");
       return;
     }
 
@@ -79,7 +80,7 @@ public class HumbleBundlePlaywrightBrowserService {
 
     // filter library items to only ebooks using the dropdown
     page.locator("#switch-platform").selectOption("ebook");
-    log.debug("Filtering library to display only ebooks");
+    LOG.debug("Filtering library to display only ebooks");
 
     for (int i = 0; i < 6; i++) {
       // scroll to the bottom of the page; loads more items
@@ -93,18 +94,18 @@ public class HumbleBundlePlaywrightBrowserService {
 
     // scroll to the top of the page
     page.locator("#switch-platform").scrollIntoViewIfNeeded();
-    log.debug("Scrolled back to top of library page");
+    LOG.debug("Scrolled back to top of library page");
     this.isLibraryLoaded = true;
   }
 
-  @Async
+  //  @Async
   public void populateDatabase() {
     this.navigateToLibraryAndWaitForProductsToLoad();
 
     final var products = page.locator(".subproduct-selector");
     final int productCount = products.count();
-    for (int i = 0; i < productCount; ++i) {
-      final var product = products.nth(i); // nth is not zero based
+    for (int i = 0; i < productCount; i++) {
+      final var product = products.nth(i + 1); // nth is not zero based
       product.click();
 
       final String productTextContent = product.textContent();
@@ -112,16 +113,10 @@ public class HumbleBundlePlaywrightBrowserService {
           .map(String::trim).toList();
       final String title = details.getFirst();
       final String publisher = details.getLast();
-      try {
-        final int ebookRowsAffected = repository.saveEbook(title, publisher);
-        if (ebookRowsAffected > 0) {
-          log.debug("ebook inserted into database: {}, {}", title, publisher);
-        }
-      } catch (Exception e) {
-        log.error(e.getMessage());
-      }
 
-      final int ebookId = repository.getEbookId(title, publisher);
+      final long publisherId = repository.insertPublisher(publisher);
+      final long ebookId = repository.insertEbook(publisherId, title);
+
       if (ebookId < 1) {
         continue; // go to next ebook
       }
@@ -130,23 +125,14 @@ public class HumbleBundlePlaywrightBrowserService {
       for (int j = 0; j < downloadsCount; ++j) {
         final var downloadOption = downloadOptions.nth(j);
         final String downloadOptionType = downloadOption.allInnerTexts().getFirst();
-        try {
-          final int downloadOptionRowsAffected = repository.saveEbookDownloadOption(ebookId,
-              downloadOptionType);
-          if (downloadOptionRowsAffected > 0) {
-            log.debug("ebook download option inserted into database: {}, {}, {}", title, publisher,
-                downloadOptionType);
-          }
-        } catch (Exception e) {
-          log.error(e.getMessage());
-        }
+        repository.insertEbookFile(ebookId, downloadOptionType);
       }
     }
-    log.debug("Finished populating database");
+    LOG.debug("Finished populating database");
   }
 
-  @Async
-  public void downloadSelectedFiles(List<Integer> fileIds) {
+  //  @Async
+  public void downloadSelectedFiles(Set<Long> fileIds) {
     this.navigateToLibraryAndWaitForProductsToLoad();
 
     final List<HumbleBundleLibraryEbook> ebooksToDownload = repository.getSelectedEbooksFromFileIds(
@@ -156,7 +142,7 @@ public class HumbleBundlePlaywrightBrowserService {
       try {
         new File(filePath).mkdirs();
       } catch (Exception e) {
-        log.error("Unable to create directory {}: {}", filePath, e.getMessage());
+        LOG.error(String.format("Unable to create directory %s: %s", filePath, e.getMessage()));
       }
 
       // click from product list along left
@@ -175,21 +161,17 @@ public class HumbleBundlePlaywrightBrowserService {
     });
   }
 
-  public List<HumbleBundleLibraryEbook> getAllEbooks() {
-    return repository.findAllEbooks();
-  }
-
   @PostConstruct
-  private void init() {
-    log.debug("Initializing Humble Bundle session");
+  void init() {
+    LOG.debug("Initializing Humble Bundle session");
     page.navigate("/");
     // go to login page
     page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Log In"))
         .click();
-    log.debug("Navigated to login page");
+    LOG.debug("Navigated to login page");
 
     // login page
-    log.debug("Entering user credentials");
+    LOG.debug("Entering user credentials");
     page.getByPlaceholder("Email", new Page.GetByPlaceholderOptions().setExact(true))
         .fill(humbleBundleUsername);
     page.getByPlaceholder("Password", new Page.GetByPlaceholderOptions().setExact(true))
@@ -199,7 +181,7 @@ public class HumbleBundlePlaywrightBrowserService {
         .click();
 
     // 2fa page
-    log.debug("Entering 2FA token");
+    LOG.debug("Entering 2FA token");
     final String totp = OtpGenerator.generateTOTP(humbleBundleTotpSecret);
     page.getByPlaceholder("Enter Google Authenticator code",
         new Page.GetByPlaceholderOptions().setExact(true)).fill(totp);
@@ -209,10 +191,10 @@ public class HumbleBundlePlaywrightBrowserService {
   }
 
   @PreDestroy
-  private void cleanup() {
-    log.debug("Cleaning up browser session");
+  void cleanup() {
+    LOG.debug("Cleaning up browser session");
     try {
-      log.debug("Attempting to log out");
+      LOG.debug("Attempting to log out");
       page.navigate("/home/library");
       // open account dropdown
       page.getByLabel("Account Access").click();
@@ -221,15 +203,15 @@ public class HumbleBundlePlaywrightBrowserService {
           .setExact(true)).click();
       // wait to be redirected to login page
       page.waitForURL(url -> url.contains("/login"));
-      log.debug("Log out should be successful");
+      LOG.debug("Log out should be successful");
     } catch (Exception e) {
-      log.error("Unable to log out; most likely session was not logged in");
+      LOG.error("Unable to log out; most likely session was not logged in");
     } finally {
-      log.debug("Closing browser instance");
+      LOG.debug("Closing browser instance");
       context.close();
       browser.close();
       playwright.close();
-      log.debug("Browser instance closed");
+      LOG.debug("Browser instance closed");
     }
   }
 

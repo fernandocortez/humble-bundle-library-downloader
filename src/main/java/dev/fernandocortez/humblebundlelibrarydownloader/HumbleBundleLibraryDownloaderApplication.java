@@ -1,15 +1,13 @@
 package dev.fernandocortez.humblebundlelibrarydownloader;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableAsync;
+import io.quarkus.runtime.Quarkus;
+import io.quarkus.runtime.annotations.QuarkusMain;
 
-@EnableAsync
-@SpringBootApplication
+@QuarkusMain
 public class HumbleBundleLibraryDownloaderApplication {
 
   public static void main(String[] args) {
-    SpringApplication.run(HumbleBundleLibraryDownloaderApplication.class, args);
+    Quarkus.run(args);
   }
 
 }
