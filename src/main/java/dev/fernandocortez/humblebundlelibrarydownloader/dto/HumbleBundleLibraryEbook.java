@@ -1,15 +1,15 @@
-package dev.fernandocortez.humblebundlelibrarydownloader.models;
+package dev.fernandocortez.humblebundlelibrarydownloader.dto;
 
+import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
+@Builder
 @Data
-@NoArgsConstructor
 public class HumbleBundleLibraryEbook {
 
   private String title;
   private String publisher;
   private String downloadOption;
-  private Integer fileId;
+  private String fileName;
 
 }
