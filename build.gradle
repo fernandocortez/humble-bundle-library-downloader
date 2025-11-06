@@ -36,7 +36,8 @@ compileJava {
 task installPlaywrightBrowsers(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'com.microsoft.playwright.CLI'
-    args 'install'
+    args = ['install', 'firefox'] // Installs only Firefox
+    // args = ['install'] // Installs all default browsers (Chromium, Firefox, WebKit)
 }
 
 task installPlaywrightDeps(type: JavaExec) {
